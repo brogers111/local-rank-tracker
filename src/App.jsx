@@ -698,9 +698,9 @@ export default function App() {
             <h3 className="text-2xl font-bold text-white mb-4 text-center">Generating PDF</h3>
 
             <div className="mb-6">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-purple-300 text-sm">{exportProgress.currentTask}</span>
-                <span className="text-cyan-400 font-semibold text-sm">
+              <div className="flex justify-between items-center mb-2 gap-3">
+                <span className="text-purple-300 text-sm truncate">{exportProgress.currentTask}</span>
+                <span className="text-cyan-400 font-semibold text-sm whitespace-nowrap flex-shrink-0">
                   {exportProgress.current} / {exportProgress.total}
                 </span>
               </div>
