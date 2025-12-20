@@ -207,6 +207,8 @@ export default function App() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState({ current: 0, total: 0, currentTask: '' });
   const fileInputRef = useRef(null);
 
   const updateKeywordsAndBusinesses = (allData) => {
@@ -347,12 +349,146 @@ export default function App() {
     setCompareCompetitor('');
   };
 
-  const handleExport = (exportOptions) => {
-    // PDF export would require html2canvas + jsPDF
-    // For now, show what would be exported
-    console.log('Export options:', exportOptions);
-    alert(`Export would include:\n- ${exportOptions.selectedKeywords.length} keyword pages\n- ${exportOptions.selectedBusiness ? '1 business page' : 'No business page'}\n- ${exportOptions.competitors.length} comparison pages\n\nPDF export requires additional libraries (html2canvas, jsPDF)`);
+  const handleExport = async (exportOptions) => {
+    const { selectedKeywords, selectedBusiness, primaryClient, competitors } = exportOptions;
+
+    // Calculate total pages to export
+    const totalPages = selectedKeywords.length +
+                      (selectedBusiness ? 1 : 0) +
+                      (primaryClient && competitors.length > 0 ? competitors.length : 0);
+
+    if (totalPages === 0) {
+      alert('Please select at least one keyword, business, or comparison to export.');
+      return;
+    }
+
+    setIsExporting(true);
+    setExportProgress({ current: 0, total: totalPages, currentTask: 'Initializing...' });
     setShowExportModal(false);
+
+    try {
+      // Import libraries dynamically
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      let isFirstPage = true;
+      let pageCount = 0;
+
+      // Helper function to capture and add a page to PDF
+      const captureAndAddPage = async (element, title) => {
+        if (!element) {
+          console.warn('Element not found for:', title);
+          return;
+        }
+
+        // Add new page if not first
+        if (!isFirstPage) {
+          pdf.addPage();
+        }
+        isFirstPage = false;
+
+        // Capture the element as canvas
+        const canvas = await html2canvas(element, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#1e1b4b', // Purple background
+          windowWidth: element.scrollWidth,
+          windowHeight: element.scrollHeight
+        });
+
+        // Calculate dimensions to fit A4
+        const imgWidth = 210; // A4 width in mm
+        const pageHeight = 297; // A4 height in mm
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+        // Add image to PDF
+        const imgData = canvas.toDataURL('image/png');
+
+        // If image is taller than page, we may need to handle it
+        if (imgHeight > pageHeight) {
+          // For very tall content, fit to page height
+          const scaledWidth = (canvas.width * pageHeight) / canvas.height;
+          pdf.addImage(imgData, 'PNG', (imgWidth - scaledWidth) / 2, 0, scaledWidth, pageHeight);
+        } else {
+          pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+        }
+
+        pageCount++;
+        setExportProgress({ current: pageCount, total: totalPages, currentTask: `Exported: ${title}` });
+      };
+
+      // 1. Export Keyword Views
+      for (const keyword of selectedKeywords) {
+        setExportProgress({ current: pageCount, total: totalPages, currentTask: `Exporting keyword: ${keyword}` });
+
+        // Temporarily set the keyword view
+        setViewMode('keyword');
+        setSelectedKeyword(keyword);
+
+        // Wait for render
+        await new Promise(resolve => setTimeout(resolve, 800));
+
+        // Find the keyword view container
+        const keywordContainer = document.querySelector('[data-view="keyword"]');
+        if (keywordContainer) {
+          await captureAndAddPage(keywordContainer, `Keyword: ${keyword}`);
+        }
+      }
+
+      // 2. Export Business View
+      if (selectedBusiness) {
+        setExportProgress({ current: pageCount, total: totalPages, currentTask: `Exporting business: ${selectedBusiness}` });
+
+        setViewMode('business');
+        setSelectedBusiness(selectedBusiness);
+
+        await new Promise(resolve => setTimeout(resolve, 800));
+
+        const businessContainer = document.querySelector('[data-view="business"]');
+        if (businessContainer) {
+          await captureAndAddPage(businessContainer, `Business: ${selectedBusiness}`);
+        }
+      }
+
+      // 3. Export Comparison Views (one per competitor)
+      if (primaryClient && competitors.length > 0) {
+        setViewMode('comparison');
+        setPrimaryClient(primaryClient);
+
+        for (const competitor of competitors) {
+          setExportProgress({ current: pageCount, total: totalPages, currentTask: `Exporting comparison: ${primaryClient} vs ${competitor}` });
+
+          setCompareCompetitor(competitor);
+
+          await new Promise(resolve => setTimeout(resolve, 800));
+
+          const comparisonContainer = document.querySelector('[data-view="comparison"]');
+          if (comparisonContainer) {
+            await captureAndAddPage(comparisonContainer, `${primaryClient} vs ${competitor}`);
+          }
+        }
+      }
+
+      // Save the PDF
+      const timestamp = new Date().toISOString().split('T')[0];
+      pdf.save(`local-rank-report-${timestamp}.pdf`);
+
+      setExportProgress({ current: totalPages, total: totalPages, currentTask: 'Export complete!' });
+
+      // Show success message briefly
+      setTimeout(() => {
+        setIsExporting(false);
+        setExportProgress({ current: 0, total: 0, currentTask: '' });
+      }, 2000);
+
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Error generating PDF: ' + error.message);
+      setIsExporting(false);
+      setExportProgress({ current: 0, total: 0, currentTask: '' });
+    }
   };
 
   const dateRange = getDateRange();
@@ -500,13 +636,41 @@ export default function App() {
         businesses={businesses}
         onExport={handleExport}
       />
+
+      {/* Export Progress Overlay */}
+      {isExporting && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+          <div className="bg-purple-950 border border-purple-700 rounded-xl p-8 max-w-md w-full mx-4">
+            <h3 className="text-2xl font-bold text-white mb-4 text-center">Generating PDF</h3>
+
+            <div className="mb-6">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-purple-300 text-sm">{exportProgress.currentTask}</span>
+                <span className="text-cyan-400 font-semibold text-sm">
+                  {exportProgress.current} / {exportProgress.total}
+                </span>
+              </div>
+              <div className="w-full bg-purple-800 rounded-full h-3 overflow-hidden">
+                <div
+                  className="bg-gradient-to-r from-cyan-500 to-purple-500 h-full transition-all duration-500 ease-out"
+                  style={{ width: `${exportProgress.total > 0 ? (exportProgress.current / exportProgress.total) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+
+            <p className="text-purple-400 text-sm text-center">
+              Please wait while we capture your reports...
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function ComparisonView({ primaryClient, setPrimaryClient, compareCompetitor, setCompareCompetitor, businesses, data, totalDays, keywords }) {
   return (
-    <div className="space-y-6">
+    <div data-view="comparison" className="space-y-6">
       <div className="bg-purple-900/50 border border-purple-700 rounded-lg p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -636,7 +800,7 @@ function KeywordView({ selectedKeyword, setSelectedKeyword, keywords, data, mont
     if (!selectedKeyword) return { stats: {}, timeSeriesData: [], businesses: [] };
     const keywordData = data.filter(d => d.keyword === selectedKeyword);
     const businessList = [...new Set(keywordData.map(d => d.businessName))];
-    
+
     const stats = {};
     months.forEach(month => {
       const monthData = keywordData.filter(d => d.date.startsWith(month));
@@ -686,7 +850,7 @@ function KeywordView({ selectedKeyword, setSelectedKeyword, keywords, data, mont
   const { stats, timeSeriesData, businesses } = getKeywordData();
 
   return (
-    <div className="space-y-6">
+    <div data-view="keyword" className="space-y-6">
       <div className="bg-purple-900/50 border border-purple-700 rounded-lg p-6">
         <label className="block text-sm font-medium text-purple-200 mb-3">Select Keyword</label>
         <div className="relative">
@@ -829,7 +993,7 @@ function BusinessView({ businesses, selectedBusiness, setSelectedBusiness, data,
   const { keywords: businessKeywords, timeSeriesData, stats } = getBusinessData();
 
   return (
-    <div className="space-y-6">
+    <div data-view="business" className="space-y-6">
       <div className="bg-purple-900/50 border border-purple-700 rounded-lg p-6">
         <label className="block text-sm font-medium text-purple-200 mb-3">Select Business</label>
         <div className="relative">
