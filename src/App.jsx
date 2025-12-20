@@ -388,6 +388,54 @@ export default function App() {
         }
         isFirstPage = false;
 
+        // Set page background color (purple to match app theme)
+        pdf.setFillColor(30, 27, 75); // #1e1b4b
+        pdf.rect(0, 0, 210, 297, 'F');
+
+        // Add header
+        const headerHeight = 20;
+        const margin = 15;
+
+        // Load and add favicon (Amsive logo) - white version
+        const faviconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="407.176" height="512" viewBox="0 0 407.176 512">
+          <path d="M310.53,345.408c0,53.784-50.97,76.526-109.138,76.526-46.985,0-105.551-16.552-105.551-63.138,0-49.165,41.78-61.99,108.857-61.99H310.53ZM194.17.058C111.9.058,45.2,26.457,45.2,26.457L31.248,129.57S96.52,95.129,196.538,95.129c107.544,0,113.991,54.393,113.991,88.9v30.924h-117.2C95.3,214.958.113,245.109.113,360.249c0,83.63,72.657,151.809,199.637,151.809,109.56,0,207.538-39.9,207.538-173.168V172.428C407.265,38.227,301.433.058,194.17.058" transform="translate(-0.113 -0.058)" fill="white"/>
+        </svg>`;
+
+        // Convert SVG to base64 for embedding
+        const svgBlob = new Blob([faviconSvg], { type: 'image/svg+xml' });
+        const svgUrl = URL.createObjectURL(svgBlob);
+        const faviconImg = new Image();
+
+        await new Promise((resolve) => {
+          faviconImg.onload = resolve;
+          faviconImg.onerror = resolve; // Continue even if logo fails
+          faviconImg.src = svgUrl;
+        });
+
+        // Add logo (if loaded successfully)
+        if (faviconImg.complete && faviconImg.naturalHeight !== 0) {
+          const logoHeight = 12;
+          const logoWidth = (faviconImg.width / faviconImg.height) * logoHeight;
+          try {
+            pdf.addImage(faviconImg, 'PNG', margin, margin - 2, logoWidth, logoHeight);
+          } catch (e) {
+            console.warn('Could not add logo:', e);
+          }
+        }
+
+        URL.revokeObjectURL(svgUrl);
+
+        // Add header text
+        pdf.setFontSize(16);
+        pdf.setTextColor(255, 255, 255); // White text
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Local SEO Reports Courtesy of Amsive', margin + 20, margin + 6);
+
+        // Add a subtle line under header
+        pdf.setDrawColor(124, 58, 237); // Purple line
+        pdf.setLineWidth(0.5);
+        pdf.line(margin, margin + headerHeight - 5, 210 - margin, margin + headerHeight - 5);
+
         // Capture the element as canvas
         const canvas = await html2canvas(element, {
           scale: 2,
@@ -398,21 +446,27 @@ export default function App() {
           windowHeight: element.scrollHeight
         });
 
-        // Calculate dimensions to fit A4
-        const imgWidth = 210; // A4 width in mm
-        const pageHeight = 297; // A4 height in mm
+        // Calculate dimensions with padding
+        const contentMargin = margin; // 15mm margins on sides
+        const topMargin = margin + headerHeight + 5; // Below header
+        const bottomMargin = margin;
+        const availableWidth = 210 - (contentMargin * 2); // A4 width minus margins
+        const availableHeight = 297 - topMargin - bottomMargin; // A4 height minus header and margins
+
+        const imgWidth = availableWidth;
         const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-        // Add image to PDF
+        // Add image to PDF with margins
         const imgData = canvas.toDataURL('image/png');
 
-        // If image is taller than page, we may need to handle it
-        if (imgHeight > pageHeight) {
-          // For very tall content, fit to page height
-          const scaledWidth = (canvas.width * pageHeight) / canvas.height;
-          pdf.addImage(imgData, 'PNG', (imgWidth - scaledWidth) / 2, 0, scaledWidth, pageHeight);
+        // If image is taller than available space, scale to fit
+        if (imgHeight > availableHeight) {
+          const scaledHeight = availableHeight;
+          const scaledWidth = (canvas.width * scaledHeight) / canvas.height;
+          const xOffset = contentMargin + (availableWidth - scaledWidth) / 2;
+          pdf.addImage(imgData, 'PNG', xOffset, topMargin, scaledWidth, scaledHeight);
         } else {
-          pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+          pdf.addImage(imgData, 'PNG', contentMargin, topMargin, imgWidth, imgHeight);
         }
 
         pageCount++;
