@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { ChevronDown, FileText, Trash2, Star, TrendingUp, Download, X, HelpCircle } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import amsiveLogo from './assets/amsive-logo.svg';
+import amsiveLogo from './assets/amsive-logo.png';
 import step1Img from './assets/1.png'
 import step2Img from './assets/2.png'
 import step3Img from './assets/3.png'
@@ -380,15 +380,32 @@ export default function App() {
       const dateRange = getDateRange();
       const headerText = `Your Local SEO Report for ${dateRange.start} - ${dateRange.end}`;
 
-      // Pre-load the logo image
-      const logoImg = new Image();
-      logoImg.crossOrigin = 'anonymous';
-      
-      await new Promise((resolve) => {
-        logoImg.onload = resolve;
-        logoImg.onerror = resolve; // Continue even if logo fails
-        logoImg.src = amsiveLogo;
-      });
+      // Pre-load the logo image and convert to base64
+      let logoDataUrl = null;
+      try {
+        const logoImg = new Image();
+        logoImg.crossOrigin = 'anonymous';
+        
+        await new Promise((resolve, reject) => {
+          logoImg.onload = () => {
+            // Convert image to base64 using canvas
+            const canvas = document.createElement('canvas');
+            canvas.width = logoImg.naturalWidth;
+            canvas.height = logoImg.naturalHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(logoImg, 0, 0);
+            logoDataUrl = canvas.toDataURL('image/png');
+            resolve();
+          };
+          logoImg.onerror = () => {
+            console.warn('Could not load logo');
+            resolve(); // Continue without logo
+          };
+          logoImg.src = amsiveLogo;
+        });
+      } catch (e) {
+        console.warn('Logo loading error:', e);
+      }
 
       // Helper function to capture and add a page to PDF
       const captureAndAddPage = async (element, title) => {
@@ -412,13 +429,14 @@ export default function App() {
         const margin = 15;
 
         // Add logo on the left (if loaded successfully)
-        if (logoImg.complete && logoImg.naturalHeight !== 0) {
-          const logoHeight = 10;
-          const logoWidth = (logoImg.width / logoImg.height) * logoHeight;
+        if (logoDataUrl) {
           try {
-            pdf.addImage(logoImg, 'SVG', margin, margin, logoWidth, logoHeight);
+            const logoHeight = 10;
+            // Estimate width based on typical logo aspect ratio, or calculate from original
+            const logoWidth = logoHeight * 2.5; // Adjust this ratio for your logo
+            pdf.addImage(logoDataUrl, 'PNG', margin, margin, logoWidth, logoHeight);
           } catch (e) {
-            console.warn('Could not add logo:', e);
+            console.warn('Could not add logo to PDF:', e);
           }
         }
 
