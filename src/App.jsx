@@ -382,12 +382,16 @@ export default function App() {
 
       // Pre-load the logo image and convert to base64
       let logoDataUrl = null;
+      let logoAspectRatio = 1;
       try {
         const logoImg = new Image();
         logoImg.crossOrigin = 'anonymous';
         
         await new Promise((resolve, reject) => {
           logoImg.onload = () => {
+            // Store the aspect ratio (width / height)
+            logoAspectRatio = logoImg.naturalWidth / logoImg.naturalHeight;
+            
             // Convert image to base64 using canvas
             const canvas = document.createElement('canvas');
             canvas.width = logoImg.naturalWidth;
@@ -432,8 +436,8 @@ export default function App() {
         if (logoDataUrl) {
           try {
             const logoHeight = 10;
-            // Estimate width based on typical logo aspect ratio, or calculate from original
-            const logoWidth = logoHeight * 2.5; // Adjust this ratio for your logo
+            // Calculate width using the actual aspect ratio from the loaded image
+            const logoWidth = logoHeight * logoAspectRatio;
             pdf.addImage(logoDataUrl, 'PNG', margin, margin, logoWidth, logoHeight);
           } catch (e) {
             console.warn('Could not add logo to PDF:', e);
