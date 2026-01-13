@@ -416,7 +416,7 @@ export default function App() {
           const logoHeight = 10;
           const logoWidth = (logoImg.width / logoImg.height) * logoHeight;
           try {
-            pdf.addImage(logoImg, 'PNG', margin, margin, logoWidth, logoHeight);
+            pdf.addImage(logoImg, 'SVG', margin, margin, logoWidth, logoHeight);
           } catch (e) {
             console.warn('Could not add logo:', e);
           }
