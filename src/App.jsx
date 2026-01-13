@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { ChevronDown, FileText, Trash2, Star, TrendingUp, Download, X, HelpCircle } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import amsiveLogo from './assets/amsive-logo.svg';
 import step1Img from './assets/1.png'
 import step2Img from './assets/2.png'
 import step3Img from './assets/3.png'
@@ -375,6 +376,20 @@ export default function App() {
       let isFirstPage = true;
       let pageCount = 0;
 
+      // Get date range for header
+      const dateRange = getDateRange();
+      const headerText = `Your Local SEO Report for ${dateRange.start} - ${dateRange.end}`;
+
+      // Pre-load the logo image
+      const logoImg = new Image();
+      logoImg.crossOrigin = 'anonymous';
+      
+      await new Promise((resolve) => {
+        logoImg.onload = resolve;
+        logoImg.onerror = resolve; // Continue even if logo fails
+        logoImg.src = amsiveLogo;
+      });
+
       // Helper function to capture and add a page to PDF
       const captureAndAddPage = async (element, title) => {
         if (!element) {
@@ -396,40 +411,26 @@ export default function App() {
         const headerHeight = 20;
         const margin = 15;
 
-        // Load and add favicon (Amsive logo) - white version
-        const faviconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="407.176" height="512" viewBox="0 0 407.176 512">
-          <path d="M310.53,345.408c0,53.784-50.97,76.526-109.138,76.526-46.985,0-105.551-16.552-105.551-63.138,0-49.165,41.78-61.99,108.857-61.99H310.53ZM194.17.058C111.9.058,45.2,26.457,45.2,26.457L31.248,129.57S96.52,95.129,196.538,95.129c107.544,0,113.991,54.393,113.991,88.9v30.924h-117.2C95.3,214.958.113,245.109.113,360.249c0,83.63,72.657,151.809,199.637,151.809,109.56,0,207.538-39.9,207.538-173.168V172.428C407.265,38.227,301.433.058,194.17.058" transform="translate(-0.113 -0.058)" fill="white"/>
-        </svg>`;
-
-        // Convert SVG to base64 for embedding
-        const svgBlob = new Blob([faviconSvg], { type: 'image/svg+xml' });
-        const svgUrl = URL.createObjectURL(svgBlob);
-        const faviconImg = new Image();
-
-        await new Promise((resolve) => {
-          faviconImg.onload = resolve;
-          faviconImg.onerror = resolve; // Continue even if logo fails
-          faviconImg.src = svgUrl;
-        });
-
-        // Add logo (if loaded successfully)
-        if (faviconImg.complete && faviconImg.naturalHeight !== 0) {
-          const logoHeight = 12;
-          const logoWidth = (faviconImg.width / faviconImg.height) * logoHeight;
+        // Add logo on the left (if loaded successfully)
+        if (logoImg.complete && logoImg.naturalHeight !== 0) {
+          const logoHeight = 10;
+          const logoWidth = (logoImg.width / logoImg.height) * logoHeight;
           try {
-            pdf.addImage(faviconImg, 'PNG', margin, margin - 2, logoWidth, logoHeight);
+            pdf.addImage(logoImg, 'PNG', margin, margin, logoWidth, logoHeight);
           } catch (e) {
             console.warn('Could not add logo:', e);
           }
         }
 
-        URL.revokeObjectURL(svgUrl);
-
-        // Add header text
-        pdf.setFontSize(16);
-        pdf.setTextColor(255, 255, 255); // White text
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('Local SEO Reports Courtesy of Amsive', margin + 20, margin + 6);
+        // Add header text - right aligned, smaller, lighter gray
+        pdf.setFontSize(9);
+        pdf.setTextColor(156, 163, 175); // Light gray (#9ca3af)
+        pdf.setFont('helvetica', 'normal');
+        
+        // Calculate text width for right alignment
+        const textWidth = pdf.getTextWidth(headerText);
+        const rightMargin = 210 - margin;
+        pdf.text(headerText, rightMargin - textWidth, margin + 6);
 
         // Add a subtle line under header
         pdf.setDrawColor(124, 58, 237); // Purple line
